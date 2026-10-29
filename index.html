@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>L'Ardoise des cafés</title>
+<meta name="description" content="Qui paie les cafés ce midi ?">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="theme-color" content="#F3F1EC" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#17130F" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Cafés">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Figtree:wght@400;500;600&display=swap">
+<style>
+:root{
+  --bg:#F3F1EC; --surface:#FFFFFF; --ink:#2A211C; --muted:#7A6F66; --line:#E2DDD5;
+  --accent:#1F6F5C; --accent-ink:#FFFFFF; --crema:#C98B4A; --warn:#B4462E; --good:#2E7D4F;
+  --chip:#ECE8E1;
+  --f-display:"Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
+  --f-body:"Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#17130F; --surface:#221C17; --ink:#F1EAE2; --muted:#A79A8E; --line:#3A3129;
+  --accent:#4DB89A; --accent-ink:#0E1A16; --crema:#E0A766; --warn:#E37A61; --good:#6CC08F; --chip:#2E261F;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#17130F; --surface:#221C17; --ink:#F1EAE2; --muted:#A79A8E; --line:#3A3129;
+  --accent:#4DB89A; --accent-ink:#0E1A16; --crema:#E0A766; --warn:#E37A61; --good:#6CC08F; --chip:#2E261F;
+  color-scheme:dark}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-top:calc(20px + env(safe-area-inset-top,0px));padding-bottom:calc(48px + env(safe-area-inset-bottom,0px))}
+[hidden]{display:none!important}
+.wrap{max-width:640px;margin:0 auto;display:flex;flex-direction:column;gap:22px}
+header{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+h1{font-family:var(--f-display);font-weight:800;font-size:1.7rem;margin:0;letter-spacing:-.01em;text-wrap:balance}
+.date{color:var(--muted);font-size:.9rem}
+.sync{font-size:.75rem;color:var(--muted)}
+.sync.err{color:var(--warn)}
+h2{font-family:var(--f-display);font-weight:600;font-size:1.05rem;margin:0}
+.label{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600}
+section{display:flex;flex-direction:column;gap:10px}
+.sec-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.notice{background:var(--chip);border-radius:10px;padding:10px 12px;font-size:.88rem;color:var(--muted)}
+
+.verdict{background:var(--ink);color:var(--bg);border-radius:18px;padding:20px;display:flex;flex-direction:column;gap:14px;position:relative;overflow:hidden}
+.verdict .label{color:color-mix(in srgb,var(--bg) 65%,transparent)}
+.who{font-family:var(--f-display);font-weight:800;font-size:clamp(2.1rem,9vw,3rem);line-height:1;letter-spacing:-.02em;text-wrap:balance}
+.why{font-size:.92rem;color:color-mix(in srgb,var(--bg) 78%,transparent)}
+.cup{position:absolute;right:-18px;top:-18px;width:120px;height:120px;border-radius:50%;
+  background:radial-gradient(circle at 50% 50%,var(--crema) 0 38%,color-mix(in srgb,var(--crema) 50%,var(--ink)) 39% 56%,transparent 57%);opacity:.55;pointer-events:none}
+.actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+button{font:inherit;cursor:pointer;border:0;border-radius:999px;padding:10px 16px;font-weight:600;-webkit-tap-highlight-color:transparent}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--crema);outline-offset:2px}
+.btn-pay{background:var(--accent);color:var(--accent-ink)}
+.btn-pay:disabled{opacity:.45;cursor:default}
+.btn-ghost{background:transparent;color:inherit;border:1px solid currentColor;opacity:.8}
+select{font:inherit;border-radius:999px;padding:9px 12px;border:1px solid var(--line);background:var(--surface);color:var(--ink);max-width:100%}
+.verdict select{background:transparent;color:var(--bg);border-color:color-mix(in srgb,var(--bg) 40%,transparent)}
+.verdict select option{color:#222;background:#fff}
+.sr{position:absolute;left:-9999px}
+
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{background:var(--chip);color:var(--ink);font-size:1rem;padding:11px 16px;border-radius:999px;font-weight:500;border:2px solid transparent;display:flex;gap:6px;align-items:center}
+.chip[aria-pressed="true"]{background:var(--surface);border-color:var(--accent)}
+.chip .dot{width:9px;height:9px;border-radius:50%;background:var(--line)}
+.chip[aria-pressed="true"] .dot{background:var(--accent)}
+.quick{display:flex;gap:8px}
+.q{background:transparent;color:var(--accent);border:1px solid var(--line);padding:6px 12px;font-size:.85rem}
+.add{display:flex;gap:8px}
+.add input,.setup input{flex:1;min-width:0;font:inherit;padding:9px 14px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--ink)}
+.add button{background:var(--chip);color:var(--ink)}
+
+.board{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.row{display:grid;grid-template-columns:1fr 3.2rem 3.2rem 4.6rem;gap:8px;align-items:center;padding:10px 14px;border-top:1px solid var(--line);font-variant-numeric:tabular-nums}
+.row:first-child{border-top:0}
+.row.head{font-size:.7rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:600;padding-block:8px}
+.row .n{text-align:right}
+.name{display:flex;align-items:center;gap:8px;min-width:0;flex-wrap:wrap}
+.name span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tag{font-size:.68rem;font-weight:600;padding:2px 7px;border-radius:999px;background:var(--chip);color:var(--muted);white-space:nowrap}
+.tag.next{background:var(--accent);color:var(--accent-ink)}
+.solde{text-align:right;font-weight:600}
+.neg{color:var(--warn)} .pos{color:var(--good)}
+.row.off{opacity:.5}
+.x{background:none;color:var(--muted);padding:2px 6px;font-weight:500;font-size:.8rem}
+
+.hist{display:flex;flex-direction:column}
+.h{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;border-top:1px dashed var(--line);font-size:.92rem}
+.h:first-child{border-top:0}
+.h .meta{color:var(--muted);font-size:.82rem}
+.h > div{min-width:0}
+.confirm{display:flex;gap:6px;align-items:center}
+.confirm button{padding:5px 10px;font-size:.82rem}
+.btn-del{background:var(--warn);color:#fff}
+.empty{color:var(--muted);font-size:.9rem;padding:8px 0}
+.legend{font-size:.82rem;color:var(--muted)}
+
+.setup{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:10px}
+.setup form{display:flex;gap:8px;flex-wrap:wrap}
+.setup button{background:var(--accent);color:var(--accent-ink)}
+.setup p{margin:0;font-size:.9rem;color:var(--muted)}
+.foot{text-align:center;font-size:.78rem;color:var(--muted)}
+.foot button{background:none;color:var(--muted);padding:4px 8px;font-weight:500;text-decoration:underline;font-size:.78rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>L'Ardoise des cafés</h1>
+    <div><div class="date" id="today"></div><div class="sync" id="sync">Chargement…</div></div>
+  </header>
+
+  <div class="setup" id="setup" hidden>
+    <h2>Brancher l'ardoise</h2>
+    <p>Colle l'adresse de l'application Web Google (elle finit par <strong>/exec</strong>).</p>
+    <form id="setupForm">
+      <input id="apiUrl" type="url" inputmode="url" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off" required>
+      <button type="submit">Valider</button>
+    </form>
+    <p id="setupMsg"></p>
+  </div>
+
+  <div class="notice" id="mode" hidden></div>
+
+  <div class="verdict" aria-live="polite">
+    <div class="cup" aria-hidden="true"></div>
+    <div class="label">Aujourd'hui, les cafés sont pour</div>
+    <div class="who" id="who">…</div>
+    <div class="why" id="why"></div>
+    <div class="actions">
+      <button class="btn-pay" id="pay" disabled>A payé</button>
+      <label class="sr" for="other">Quelqu'un d'autre a payé</label>
+      <select id="other" disabled><option value="">Quelqu'un d'autre a payé…</option></select>
+    </div>
+  </div>
+
+  <section>
+    <div class="sec-head"><h2>Qui est là ce midi ?</h2><span class="label" id="count"></span></div>
+    <div class="quick"><button type="button" class="q" id="all">Tout le monde</button><button type="button" class="q" id="none">Personne</button></div>
+    <div class="chips" id="chips"></div>
+    <form class="add" id="addForm">
+      <input id="newName" placeholder="Ajouter un collègue" autocomplete="off" maxlength="30">
+      <button type="submit">Ajouter</button>
+    </form>
+  </section>
+
+  <section>
+    <div class="sec-head"><h2>Les comptes</h2></div>
+    <div class="board" id="board"></div>
+    <div class="legend">Solde = cafés offerts − cafés bus. Le plus bas parmi les présents paie la tournée.</div>
+  </section>
+
+  <section>
+    <div class="sec-head"><h2>Dernières tournées</h2></div>
+    <div class="hist" id="hist"></div>
+  </section>
+
+  <div class="foot"><button type="button" id="share">Partager l'appli</button> · <button type="button" id="reconf">Changer l'adresse du serveur</button></div>
+</div>
+
+<script src="config.js"></script>
+<script>
+const $ = s => document.querySelector(s);
+const pad = n => String(n).padStart(2,"0");
+function todayStr(){ const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
+let TODAY = todayStr();
+function showDate(){ $("#today").textContent = new Date().toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long"}); }
+showDate();
+
+/* ---------- adresse du serveur ---------- */
+const store = { get(k){ try { return localStorage.getItem(k); } catch(e){ return null; } },
+                set(k,v){ try { v==null ? localStorage.removeItem(k) : localStorage.setItem(k,v); } catch(e){} } };
+(function readHash(){
+  const m = location.hash.match(/api=([^&]+)/);
+  if (m) { store.set("ardoise-api", decodeURIComponent(m[1])); history.replaceState(null, "", location.pathname + location.search); }
+})();
+let API = (window.ARDOISE_API || "").trim() || store.get("ardoise-api") || "";
+const validApi = u => /^https:\/\/script\.google(usercontent)?\.com\/.+\/exec\/?$/.test(u||"") || /^https:\/\/script\.google\.com\/a\/.+\/exec\/?$/.test(u||"");
+
+let FIXED = ["Fanny","Christian","Julien","David","Lionel","Zineb","Manu"];
+let people = [], rounds = [], presents = [], pendingDel = null, busy = 0, presentsTimer = null, loaded = false;
+
+/* ---------- cache local (affichage instantané, même hors ligne) ---------- */
+function saveCache(st){ store.set("ardoise-cache", JSON.stringify({day:TODAY, st})); }
+function loadCache(){
+  try { const c = JSON.parse(store.get("ardoise-cache")||"null"); if (!c) return;
+    if (c.day !== TODAY) c.st.presents = [];
+    apply(c.st, true);
+  } catch(e){}
+}
+
+/* ---------- serveur ---------- */
+function api(action, ...args){
+  if (!API) return Promise.reject(new Error("no-api"));
+  busy++; syncLabel();
+  const url = API + "?action=" + encodeURIComponent(action) + "&today=" + TODAY +
+              "&args=" + encodeURIComponent(JSON.stringify(args)) + "&_=" + Date.now();
+  return fetch(url, {redirect:"follow", cache:"no-store"})
+    .then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.text(); })
+    .then(t => { let j; try { j = JSON.parse(t); } catch(e){ throw new Error("bad-json"); } if (!j.ok) throw new Error(j.error||"erreur"); return j.state; })
+    .then(st => { busy--; loaded = true; apply(st); saveCache(st); hideMode(); return st; })
+    .catch(e => { busy--; syncLabel(navigator.onLine === false ? "Hors ligne" : "Pas de connexion au serveur", true);
+                  if (e.message === "bad-json") showMode("Le serveur Google ne répond pas comme prévu. Vérifie que le déploiement est en accès « Tout le monde ».");
+                  throw e; });
+}
+function apply(st, fromCache){
+  if (!st) return;
+  FIXED = st.fixed || FIXED;
+  mergePeople(st.membres || []);
+  rounds = st.tournees || [];
+  if (!presentsTimer) presents = st.presents || [];
+  render(); if (!fromCache) syncLabel();
+}
+function syncLabel(msg, err){
+  const t = new Date(), el = $("#sync");
+  el.classList.toggle("err", !!err);
+  el.textContent = msg || (busy ? "Enregistrement…" : `À jour à ${pad(t.getHours())}h${pad(t.getMinutes())}`);
+}
+function refresh(){
+  if (todayStr() !== TODAY){ TODAY = todayStr(); showDate(); presents = []; }
+  if (API && !busy && !presentsTimer && document.visibilityState === "visible") api("getState").catch(()=>{});
+}
+
+function mergePeople(docs){
+  const map = Object.fromEntries(docs.map(x=>[x.id,x]));
+  const fixed = FIXED.map((name,i) => ({id:name.toLowerCase(), name, active:true, order:i}));
+  people = fixed.map(f => ({...f, ...(map[f.id]||{}), name:f.name, order:f.order}))
+    .concat(docs.filter(x => !fixed.some(f=>f.id===x.id)));
+}
+
+/* ---------- calcul ---------- */
+function stats(){
+  const s = {};
+  people.forEach(p => s[p.id] = {paid:0, drank:0, last:""});
+  rounds.forEach(r => {
+    const n = r.presents.length;
+    if (s[r.payer]) { s[r.payer].paid += n; if ((r.at||r.date) > s[r.payer].last) s[r.payer].last = r.at||r.date; }
+    r.presents.forEach(id => { if (s[id]) s[id].drank += 1; });
+  });
+  Object.values(s).forEach(v => v.solde = v.paid - v.drank);
+  return s;
+}
+function nameOf(id){ return (people.find(p=>p.id===id)||{}).name || id; }
+function nextPayer(s){
+  const here = presents.filter(id => s[id]);
+  if (!here.length) return null;
+  return here.slice().sort((a,b) =>
+    s[a].solde - s[b].solde || (s[a].last||"").localeCompare(s[b].last||"") || nameOf(a).localeCompare(nameOf(b),"fr")
+  )[0];
+}
+
+/* ---------- rendu ---------- */
+function render(){
+  const s = stats();
+  const next = nextPayer(s);
+  const n = presents.length;
+  const can = !!API;
+  $("#count").textContent = n ? `${n} présent${n>1?"s":""} · ${n} café${n>1?"s":""}` : "";
+
+  if (!next){ $("#who").textContent = "En attente"; $("#why").textContent = "Cochez qui est là ce midi."; }
+  else {
+    $("#who").textContent = nameOf(next);
+    const v = s[next];
+    $("#why").textContent = `Solde de ${fmt(v.solde)} : ${v.paid} café${v.paid>1?"s":""} offert${v.paid>1?"s":""} pour ${v.drank} bu${v.drank>1?"s":""}. Tournée de ${n} café${n>1?"s":""}.`;
+  }
+  const pay = $("#pay");
+  pay.disabled = !next || !can;
+  pay.textContent = next ? `${nameOf(next)} a payé ${n} café${n>1?"s":""}` : "A payé";
+  pay.dataset.id = next || "";
+  const sel = $("#other");
+  sel.innerHTML = '<option value="">Quelqu\'un d\'autre a payé…</option>' +
+    presents.filter(id => id!==next && s[id]).map(id => `<option value="${esc(id)}">${esc(nameOf(id))}</option>`).join("");
+  sel.disabled = !next || !can;
+
+  $("#chips").innerHTML = people.filter(p=>p.active!==false).sort(byOrder).map(p =>
+    `<button class="chip" data-id="${esc(p.id)}" aria-pressed="${presents.includes(p.id)}"><span class="dot"></span>${esc(p.name)}</button>`
+  ).join("");
+
+  const list = people.slice().sort((a,b)=> s[a.id].solde - s[b.id].solde || byName(a,b));
+  $("#board").innerHTML = `<div class="row head"><span>Nom</span><span class="n">Offerts</span><span class="n">Bus</span><span class="n">Solde</span></div>` +
+    list.map(p => {
+      const v = s[p.id], here = presents.includes(p.id);
+      const tag = p.id===next ? '<span class="tag next">paie</span>' : here ? '<span class="tag">là</span>' : "";
+      return `<div class="row ${p.active===false?"off":""}">
+        <div class="name"><span>${esc(p.name)}</span>${tag}${p.active===false?'<span class="tag">parti</span>':""}
+          <button class="x" data-toggle="${esc(p.id)}">${p.active===false?"réactiver":"retirer"}</button></div>
+        <span class="n">${v.paid}</span><span class="n">${v.drank}</span>
+        <span class="solde ${v.solde<0?"neg":v.solde>0?"pos":""}">${fmt(v.solde)}</span></div>`;
+    }).join("");
+
+  const hist = rounds.slice().sort((a,b)=>(b.at||b.date).localeCompare(a.at||a.date)).slice(0,15);
+  $("#hist").innerHTML = hist.map(r => {
+    const dt = new Date(r.date+"T12:00").toLocaleDateString("fr-FR",{weekday:"short",day:"numeric",month:"short"});
+    const ctrl = pendingDel===r.id
+      ? `<span class="confirm"><button class="btn-del" data-del="${esc(r.id)}">Supprimer</button><button class="btn-ghost" data-cancel>Annuler</button></span>`
+      : `<button class="x" data-ask="${esc(r.id)}">annuler</button>`;
+    return `<div class="h"><div><strong>${esc(nameOf(r.payer))}</strong> a offert ${r.presents.length} café${r.presents.length>1?"s":""}
+      <div class="meta">${dt} · ${r.presents.map(nameOf).map(esc).join(", ")}</div></div>${ctrl}</div>`;
+  }).join("") || `<div class="empty">${loaded ? "Aucune tournée enregistrée. La première se fait depuis le bandeau du haut." : "…"}</div>`;
+}
+const fmt = n => (n>0?"+":"")+n;
+const byName = (a,b) => a.name.localeCompare(b.name,"fr");
+const byOrder = (a,b) => (a.order??99) - (b.order??99) || byName(a,b);
+const esc = t => String(t).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function showMode(t){ const m=$("#mode"); m.textContent=t; m.hidden=false; }
+function hideMode(){ $("#mode").hidden = true; }
+
+/* ---------- actions ---------- */
+// les coches partent 0,8 s après le dernier tapotement (une seule écriture)
+function queuePresents(){
+  render();
+  if (!API) return;
+  clearTimeout(presentsTimer);
+  presentsTimer = setTimeout(() => {
+    const ids = presents.slice();
+    presentsTimer = null;
+    api("setPresents", ids).catch(()=>{});
+  }, 800);
+}
+function flushThen(fn){
+  if (presentsTimer){ clearTimeout(presentsTimer); presentsTimer = null; return api("setPresents", presents.slice()).then(fn, ()=>{}); }
+  return fn();
+}
+
+$("#chips").addEventListener("click", e => {
+  const b = e.target.closest(".chip"); if (!b) return;
+  const id = b.dataset.id;
+  presents = presents.includes(id) ? presents.filter(x=>x!==id) : [...presents, id];
+  queuePresents();
+});
+$("#all").addEventListener("click", () => { presents = people.filter(p=>p.active!==false).map(p=>p.id); queuePresents(); });
+$("#none").addEventListener("click", () => { presents = []; queuePresents(); });
+$("#pay").addEventListener("click", e => { const id = e.currentTarget.dataset.id; if (id) flushThen(() => api("addRound", id, presents.slice())).catch(()=>{}); });
+$("#other").addEventListener("change", e => { const v=e.target.value; e.target.value=""; if (v) flushThen(() => api("addRound", v, presents.slice())).catch(()=>{}); });
+$("#addForm").addEventListener("submit", e => {
+  e.preventDefault();
+  const name = $("#newName").value.trim(); if (!name) return;
+  $("#newName").value = "";
+  if (!people.some(p => p.name.toLowerCase()===name.toLowerCase())) api("addMember", name).catch(()=>{});
+});
+document.addEventListener("click", e => {
+  const t = e.target;
+  if (t.dataset.ask){ pendingDel = t.dataset.ask; render(); }
+  else if (t.hasAttribute("data-cancel")){ pendingDel = null; render(); }
+  else if (t.dataset.del){ const id = t.dataset.del; pendingDel = null; render(); api("deleteRound", id).catch(()=>{}); }
+  else if (t.dataset.toggle){
+    const p = people.find(x=>x.id===t.dataset.toggle); if (!p) return;
+    const active = p.active===false;
+    if (!active) presents = presents.filter(x=>x!==p.id);
+    Promise.resolve(flushThen(() => api("setMemberActive", p.id, p.name, active))).catch(()=>{});
+  }
+});
+
+/* ---------- configuration ---------- */
+function showSetup(msg){
+  $("#setup").hidden = false;
+  $("#apiUrl").value = API || "";
+  $("#setupMsg").textContent = msg || "";
+  syncLabel("Serveur non configuré", true);
+}
+$("#setupForm").addEventListener("submit", e => {
+  e.preventDefault();
+  const u = $("#apiUrl").value.trim();
+  if (!validApi(u)) { $("#setupMsg").textContent = "Cette adresse ne ressemble pas à une application Web Google (…/exec)."; return; }
+  API = u; store.set("ardoise-api", u);
+  $("#setupMsg").textContent = "Connexion…";
+  api("getState").then(() => { $("#setup").hidden = true; }, () => { $("#setupMsg").textContent = "Le serveur ne répond pas. Vérifie l'adresse et que l'accès est « Tout le monde »."; });
+});
+$("#reconf").addEventListener("click", () => showSetup());
+$("#share").addEventListener("click", async () => {
+  let link = location.origin + location.pathname;
+  if (!(window.ARDOISE_API||"").trim() && API) link += "#api=" + encodeURIComponent(API);
+  const data = {title:"L'Ardoise des cafés", text:"Qui paie les cafés ce midi ?", url:link};
+  try { if (navigator.share) { await navigator.share(data); return; } } catch(e){ return; }
+  try { await navigator.clipboard.writeText(link); showMode("Lien copié : " + link); } catch(e){ showMode(link); }
+});
+
+/* ---------- démarrage ---------- */
+mergePeople([]); loadCache(); render();
+if (API) api("getState").catch(()=>{}); else showSetup();
+setInterval(refresh, 20000);
+document.addEventListener("visibilitychange", refresh);
+window.addEventListener("online", refresh);
+
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(()=>{});
+</script>
+</body>
+</html>
