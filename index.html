@@ -54,6 +54,12 @@ section{display:flex;flex-direction:column;gap:10px}
 .verdict{background:var(--ink);color:var(--bg);border-radius:18px;padding:20px;display:flex;flex-direction:column;gap:14px;position:relative;overflow:hidden}
 .verdict .label{color:color-mix(in srgb,var(--bg) 65%,transparent)}
 .who{font-family:var(--f-display);font-weight:800;font-size:clamp(2.1rem,9vw,3rem);line-height:1;letter-spacing:-.02em;text-wrap:balance}
+.paid{display:flex;align-items:center;gap:10px;background:var(--accent);color:var(--accent-ink);border-radius:12px;padding:10px 12px;font-weight:600;position:relative;z-index:1}
+.paid .ok{flex:none;width:24px;height:24px;border-radius:50%;background:var(--accent-ink);color:var(--accent);display:grid;place-items:center;font-size:.85rem;font-weight:800}
+.paid small{display:block;font-weight:500;opacity:.85;font-size:.8rem}
+.paid.pop{animation:pop .5s ease-out}
+@keyframes pop{0%{transform:scale(.92);opacity:0}60%{transform:scale(1.03);opacity:1}100%{transform:scale(1)}}
+@media (prefers-reduced-motion:reduce){.paid.pop{animation:none}}
 .why{font-size:.92rem;color:color-mix(in srgb,var(--bg) 78%,transparent)}
 .cup{position:absolute;right:-18px;top:-18px;width:120px;height:120px;border-radius:50%;
   background:radial-gradient(circle at 50% 50%,var(--crema) 0 38%,color-mix(in srgb,var(--crema) 50%,var(--ink)) 39% 56%,transparent 57%);opacity:.55;pointer-events:none}
@@ -133,7 +139,8 @@ select{font:inherit;border-radius:999px;padding:9px 12px;border:1px solid var(--
 
   <div class="verdict" aria-live="polite">
     <div class="cup" aria-hidden="true"></div>
-    <div class="label">Aujourd'hui, les cafés sont pour</div>
+    <div class="paid" id="paid" role="status" hidden></div>
+    <div class="label" id="whoLabel">Aujourd'hui, les cafés sont pour</div>
     <div class="who" id="who">…</div>
     <div class="why" id="why"></div>
     <div class="actions">
@@ -290,8 +297,25 @@ function nextPayer(s){
 }
 
 /* ---------- rendu ---------- */
+let lastPaidShown = null;
+function renderPaid(){
+  const el = $("#paid");
+  const today = rounds.filter(r => r.date === TODAY).sort((a,b)=>(b.at||"").localeCompare(a.at||""));
+  const r = today[0];
+  $("#whoLabel").textContent = r ? "Prochaine tournée pour" : "Aujourd'hui, les cafés sont pour";
+  if (!r){ el.hidden = true; lastPaidShown = null; return; }
+  const n = r.presents.length, d = r.at ? new Date(r.at) : null;
+  const when = d && !isNaN(d) ? ` à ${pad(d.getHours())}h${pad(d.getMinutes())}` : "";
+  el.innerHTML = `<span class="ok" aria-hidden="true">✓</span><span>${esc(nameOf(r.payer))} vient de payer ${n} café${n>1?"s":""}` +
+    `<small>${r.pending ? "Enregistrement…" : "Merci" + when}</small></span>`;
+  el.hidden = false;
+  const sig = r.payer + "|" + n;
+  if (lastPaidShown !== null && lastPaidShown !== sig){ el.classList.remove("pop"); void el.offsetWidth; el.classList.add("pop"); }
+  lastPaidShown = sig;
+}
 function render(){
   const s = stats();
+  renderPaid();
   const next = nextPayer(s);
   const n = presents.length;
   const can = !!API;

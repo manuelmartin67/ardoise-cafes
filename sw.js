@@ -1,6 +1,6 @@
 // L'Ardoise des cafés — service worker : l'appli s'ouvre même sans réseau.
 // Les appels au serveur Google ne passent pas par ici (toujours en direct).
-const CACHE = "ardoise-v2";
+const CACHE = "ardoise-v3";
 const SHELL = ["./", "index.html", "config.js", "manifest.webmanifest",
                "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png"];
 
