@@ -199,18 +199,49 @@ function loadCache(){
 }
 
 /* ---------- serveur ---------- */
-function api(action, ...args){
-  if (!API) return Promise.reject(new Error("no-api"));
-  busy++; syncLabel();
+// Les actions s'affichent tout de suite ; l'enregistrement part en arrière-plan,
+// une requête à la fois et dans l'ordre. Une réponse du serveur n'écrase l'écran
+// que quand il n'y a plus rien en attente (sinon on garde la saisie en cours).
+const queue = []; let sending = false, failed = false, gen = 0;
+function call(action, args){
   const url = API + "?action=" + encodeURIComponent(action) + "&today=" + TODAY +
               "&args=" + encodeURIComponent(JSON.stringify(args)) + "&_=" + Date.now();
   return fetch(url, {redirect:"follow", cache:"no-store"})
     .then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.text(); })
-    .then(t => { let j; try { j = JSON.parse(t); } catch(e){ throw new Error("bad-json"); } if (!j.ok) throw new Error(j.error||"erreur"); return j.state; })
-    .then(st => { busy--; loaded = true; apply(st); saveCache(st); hideMode(); return st; })
-    .catch(e => { busy--; syncLabel(navigator.onLine === false ? "Hors ligne" : "Pas de connexion au serveur", true);
-                  if (e.message === "bad-json") showMode("Le serveur Google ne répond pas comme prévu. Vérifie que le déploiement est en accès « Tout le monde ».");
-                  throw e; });
+    .then(t => { let j; try { j = JSON.parse(t); } catch(e){ throw new Error("bad-json"); } if (!j.ok) throw new Error(j.error||"erreur"); return j.state; });
+}
+function onError(e){
+  syncLabel(navigator.onLine === false ? "Hors ligne" : "Pas de connexion au serveur", true);
+  if (e.message === "bad-json") showMode("Le serveur Google ne répond pas comme prévu. Vérifie que le déploiement est en accès « Tout le monde ».");
+}
+function idle(){ return !queue.length && !sending && !presentsTimer; }
+function receive(st, g){
+  loaded = true; hideMode();
+  if (idle() && (g === undefined || g === gen)) { saveCache(st); apply(st); failed = false; }
+}
+function enqueue(action, ...args){
+  if (!API) return;
+  const last = queue[queue.length-1];
+  if (action === "setPresents" && last && last.action === "setPresents") last.args = args;
+  else queue.push({action, args});
+  gen++; syncLabel(); pump();
+}
+function pump(){
+  if (sending) return;
+  const op = queue.shift();
+  if (!op){ if (failed && !presentsTimer){ failed = false; api("getState").catch(()=>{}); } else syncLabel(); return; }
+  sending = true;
+  call(op.action, op.args)
+    .then(st => { sending = false; receive(st); }, e => { sending = false; failed = true; onError(e); })
+    .then(pump);
+}
+// lecture simple (démarrage, rafraîchissement, configuration)
+function api(action, ...args){
+  if (!API) return Promise.reject(new Error("no-api"));
+  busy++; syncLabel(); const g = gen;
+  return call(action, args)
+    .then(st => { busy--; receive(st, g); if (idle()) syncLabel(); return st; })
+    .catch(e => { busy--; onError(e); throw e; });
 }
 function apply(st, fromCache){
   if (!st) return;
@@ -223,11 +254,11 @@ function apply(st, fromCache){
 function syncLabel(msg, err){
   const t = new Date(), el = $("#sync");
   el.classList.toggle("err", !!err);
-  el.textContent = msg || (busy ? "Enregistrement…" : `À jour à ${pad(t.getHours())}h${pad(t.getMinutes())}`);
+  el.textContent = msg || ((busy || queue.length || sending) ? "Enregistrement…" : `À jour à ${pad(t.getHours())}h${pad(t.getMinutes())}`);
 }
 function refresh(){
   if (todayStr() !== TODAY){ TODAY = todayStr(); showDate(); presents = []; }
-  if (API && !busy && !presentsTimer && document.visibilityState === "visible") api("getState").catch(()=>{});
+  if (API && !busy && idle() && document.visibilityState === "visible") api("getState").catch(()=>{});
 }
 
 function mergePeople(docs){
@@ -281,9 +312,14 @@ function render(){
     presents.filter(id => id!==next && s[id]).map(id => `<option value="${esc(id)}">${esc(nameOf(id))}</option>`).join("");
   sel.disabled = !next || !can;
 
-  $("#chips").innerHTML = people.filter(p=>p.active!==false).sort(byOrder).map(p =>
-    `<button class="chip" data-id="${esc(p.id)}" aria-pressed="${presents.includes(p.id)}"><span class="dot"></span>${esc(p.name)}</button>`
-  ).join("");
+  const shown = people.filter(p=>p.active!==false && !p.pending).sort(byOrder);
+  const sig = shown.map(p=>p.id+"|"+p.name).join("\n"), chips = $("#chips");
+  if (chips.dataset.sig !== sig){
+    chips.dataset.sig = sig;
+    chips.innerHTML = shown.map(p =>
+      `<button class="chip" data-id="${esc(p.id)}" aria-pressed="false"><span class="dot"></span>${esc(p.name)}</button>`).join("");
+  }
+  chips.querySelectorAll(".chip").forEach(b => { const on = String(presents.includes(b.dataset.id)); if (b.getAttribute("aria-pressed") !== on) b.setAttribute("aria-pressed", on); });
 
   const list = people.slice().sort((a,b)=> s[a.id].solde - s[b.id].solde || byName(a,b));
   $("#board").innerHTML = `<div class="row head"><span>Nom</span><span class="n">Offerts</span><span class="n">Bus</span><span class="n">Solde</span></div>` +
@@ -300,7 +336,7 @@ function render(){
   const hist = rounds.slice().sort((a,b)=>(b.at||b.date).localeCompare(a.at||a.date)).slice(0,15);
   $("#hist").innerHTML = hist.map(r => {
     const dt = new Date(r.date+"T12:00").toLocaleDateString("fr-FR",{weekday:"short",day:"numeric",month:"short"});
-    const ctrl = pendingDel===r.id
+    const ctrl = r.pending ? `<span class="meta">enregistrement…</span>` : pendingDel===r.id
       ? `<span class="confirm"><button class="btn-del" data-del="${esc(r.id)}">Supprimer</button><button class="btn-ghost" data-cancel>Annuler</button></span>`
       : `<button class="x" data-ask="${esc(r.id)}">annuler</button>`;
     return `<div class="h"><div><strong>${esc(nameOf(r.payer))}</strong> a offert ${r.presents.length} café${r.presents.length>1?"s":""}
@@ -320,15 +356,20 @@ function queuePresents(){
   render();
   if (!API) return;
   clearTimeout(presentsTimer);
-  presentsTimer = setTimeout(() => {
-    const ids = presents.slice();
-    presentsTimer = null;
-    api("setPresents", ids).catch(()=>{});
-  }, 800);
+  presentsTimer = setTimeout(() => { presentsTimer = null; enqueue("setPresents", presents.slice()); }, 800);
+  syncLabel();
 }
-function flushThen(fn){
-  if (presentsTimer){ clearTimeout(presentsTimer); presentsTimer = null; return api("setPresents", presents.slice()).then(fn, ()=>{}); }
-  return fn();
+function flush(){
+  if (presentsTimer){ clearTimeout(presentsTimer); presentsTimer = null; enqueue("setPresents", presents.slice()); }
+}
+function nowIso(){ return new Date().toISOString(); }
+function payRound(payer){
+  if (!payer || !API) return;
+  flush();
+  const ids = presents.slice();
+  rounds = rounds.concat([{id:"tmp-"+Date.now(), date:TODAY, at:nowIso(), payer, presents:ids, pending:true}]);
+  render();
+  enqueue("addRound", payer, ids);
 }
 
 $("#chips").addEventListener("click", e => {
@@ -337,26 +378,35 @@ $("#chips").addEventListener("click", e => {
   presents = presents.includes(id) ? presents.filter(x=>x!==id) : [...presents, id];
   queuePresents();
 });
-$("#all").addEventListener("click", () => { presents = people.filter(p=>p.active!==false).map(p=>p.id); queuePresents(); });
+$("#all").addEventListener("click", () => { presents = people.filter(p=>p.active!==false && !p.pending).map(p=>p.id); queuePresents(); });
 $("#none").addEventListener("click", () => { presents = []; queuePresents(); });
-$("#pay").addEventListener("click", e => { const id = e.currentTarget.dataset.id; if (id) flushThen(() => api("addRound", id, presents.slice())).catch(()=>{}); });
-$("#other").addEventListener("change", e => { const v=e.target.value; e.target.value=""; if (v) flushThen(() => api("addRound", v, presents.slice())).catch(()=>{}); });
+$("#pay").addEventListener("click", e => payRound(e.currentTarget.dataset.id));
+$("#other").addEventListener("change", e => { const v=e.target.value; e.target.value=""; payRound(v); });
 $("#addForm").addEventListener("submit", e => {
   e.preventDefault();
-  const name = $("#newName").value.trim(); if (!name) return;
+  const name = $("#newName").value.trim(); if (!name || !API) return;
   $("#newName").value = "";
-  if (!people.some(p => p.name.toLowerCase()===name.toLowerCase())) api("addMember", name).catch(()=>{});
+  if (people.some(p => p.name.toLowerCase()===name.toLowerCase())) return;
+  people = people.concat([{id:"tmp-"+Date.now(), name, active:true, pending:true}]);
+  render();
+  flush(); enqueue("addMember", name);
 });
 document.addEventListener("click", e => {
   const t = e.target;
   if (t.dataset.ask){ pendingDel = t.dataset.ask; render(); }
   else if (t.hasAttribute("data-cancel")){ pendingDel = null; render(); }
-  else if (t.dataset.del){ const id = t.dataset.del; pendingDel = null; render(); api("deleteRound", id).catch(()=>{}); }
+  else if (t.dataset.del){
+    const id = t.dataset.del; pendingDel = null;
+    rounds = rounds.filter(r => r.id !== id); render();
+    flush(); enqueue("deleteRound", id);
+  }
   else if (t.dataset.toggle){
-    const p = people.find(x=>x.id===t.dataset.toggle); if (!p) return;
+    const p = people.find(x=>x.id===t.dataset.toggle); if (!p || p.pending) return;
     const active = p.active===false;
+    p.active = active;
     if (!active) presents = presents.filter(x=>x!==p.id);
-    Promise.resolve(flushThen(() => api("setMemberActive", p.id, p.name, active))).catch(()=>{});
+    render();
+    flush(); enqueue("setMemberActive", p.id, p.name, active);
   }
 });
 
